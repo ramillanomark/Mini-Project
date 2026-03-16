@@ -1,0 +1,304 @@
+<?php
+include 'connection.php';
+if (!isset($_SESSION['logged_in'])) { header("Location: login.php"); exit(); }
+
+$msg = "";
+
+if (isset($_POST['add_project'])) {
+    $t = mysqli_real_escape_string($conn, $_POST['title']);
+    $d = mysqli_real_escape_string($conn, $_POST['description']);
+    $u = mysqli_real_escape_string($conn, $_POST['tech_used']);
+    mysqli_query($conn, "INSERT INTO projects (title,description,tech_used,date_added) VALUES ('$t','$d','$u','".date('Y-m-d')."')");
+    $msg = "Project added!";
+}
+if (isset($_POST['update_project'])) {
+    $id = (int)$_POST['id'];
+    $t = mysqli_real_escape_string($conn, $_POST['title']);
+    $d = mysqli_real_escape_string($conn, $_POST['description']);
+    $u = mysqli_real_escape_string($conn, $_POST['tech_used']);
+    mysqli_query($conn, "UPDATE projects SET title='$t',description='$d',tech_used='$u' WHERE id=$id");
+    $msg = "Project updated!";
+}
+if (isset($_GET['del_project'])) {
+    mysqli_query($conn, "DELETE FROM projects WHERE id=".(int)$_GET['del_project']);
+    header("Location: admin.php?msg=deleted"); exit();
+}
+
+if (isset($_POST['add_skill'])) {
+    $n = mysqli_real_escape_string($conn, $_POST['skill_name']);
+    $l = mysqli_real_escape_string($conn, $_POST['skill_level']);
+    mysqli_query($conn, "INSERT INTO skills (skill_name,skill_level) VALUES ('$n','$l')");
+    $msg = "Skill added!";
+}
+if (isset($_POST['update_skill'])) {
+    $id = (int)$_POST['id'];
+    $n = mysqli_real_escape_string($conn, $_POST['skill_name']);
+    $l = mysqli_real_escape_string($conn, $_POST['skill_level']);
+    mysqli_query($conn, "UPDATE skills SET skill_name='$n',skill_level='$l' WHERE id=$id");
+    $msg = "Skill updated!";
+}
+if (isset($_GET['del_skill'])) {
+    mysqli_query($conn, "DELETE FROM skills WHERE id=".(int)$_GET['del_skill']);
+    header("Location: admin.php?msg=deleted"); exit();
+}
+
+if (isset($_POST['add_exp'])) {
+    $j = mysqli_real_escape_string($conn, $_POST['job_title']);
+    $c = mysqli_real_escape_string($conn, $_POST['company']);
+    $d = mysqli_real_escape_string($conn, $_POST['description']);
+    $y = mysqli_real_escape_string($conn, $_POST['year']);
+    mysqli_query($conn, "INSERT INTO experiences (job_title,company,description,year) VALUES ('$j','$c','$d','$y')");
+    $msg = "Experience added!";
+}
+if (isset($_POST['update_exp'])) {
+    $id = (int)$_POST['id'];
+    $j = mysqli_real_escape_string($conn, $_POST['job_title']);
+    $c = mysqli_real_escape_string($conn, $_POST['company']);
+    $d = mysqli_real_escape_string($conn, $_POST['description']);
+    $y = mysqli_real_escape_string($conn, $_POST['year']);
+    mysqli_query($conn, "UPDATE experiences SET job_title='$j',company='$c',description='$d',year='$y' WHERE id=$id");
+    $msg = "Experience updated!";
+}
+if (isset($_GET['del_exp'])) {
+    mysqli_query($conn, "DELETE FROM experiences WHERE id=".(int)$_GET['del_exp']);
+    header("Location: admin.php?msg=deleted"); exit();
+}
+
+if (isset($_GET['del_msg'])) {
+    mysqli_query($conn, "DELETE FROM messages WHERE id=".(int)$_GET['del_msg']);
+    header("Location: admin.php?msg=deleted"); exit();
+}
+
+if (!$msg && isset($_GET['msg'])) $msg = "Done!";
+
+$ep = isset($_GET['edit_project'])    ? mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM projects WHERE id=".(int)$_GET['edit_project']))    : null;
+$es = isset($_GET['edit_skill'])      ? mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM skills WHERE id=".(int)$_GET['edit_skill']))         : null;
+$ee = isset($_GET['edit_exp'])        ? mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM experiences WHERE id=".(int)$_GET['edit_exp']))      : null;
+
+$projects    = mysqli_query($conn, "SELECT * FROM projects ORDER BY date_added DESC");
+$skills      = mysqli_query($conn, "SELECT * FROM skills ORDER BY skill_name");
+$experiences = mysqli_query($conn, "SELECT * FROM experiences ORDER BY year DESC");
+$messages    = mysqli_query($conn, "SELECT * FROM messages ORDER BY date_sent DESC");
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg:#0e0e0e; --surface:#181818; --border:#2e2e2e; --text:#e8e8e8; --muted:#888; --accent:#c8f135; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); }
+        a { color: inherit; text-decoration: none; }
+
+        header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+        header .logo { font-family: 'Syne', sans-serif; font-weight: 800; color: var(--accent); }
+        header a { font-size: 0.85rem; color: var(--muted); margin-left: 1.5rem; }
+        header a:hover { color: var(--text); }
+
+        .wrap { max-width: 860px; margin: 2rem auto; padding: 0 1.5rem; }
+
+        .alert { background: #1a2e0a; border: 1px solid #3a6010; color: var(--accent); padding: 0.7rem 1rem; border-radius: 5px; font-size: 0.85rem; margin-bottom: 1.5rem; }
+
+        h2 { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+
+        .section { margin-bottom: 3rem; }
+
+        form input, form textarea, form select {
+            background: #111; border: 1px solid var(--border); color: var(--text);
+            padding: 0.6rem 0.8rem; border-radius: 4px; font-size: 0.88rem;
+            font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s;
+        }
+        form input:focus, form textarea:focus, form select:focus { border-color: var(--accent); }
+        form textarea { resize: vertical; min-height: 70px; }
+        form select option { background: #1e1e1e; }
+
+        .form-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+        .form-row input, .form-row select { flex: 1; min-width: 140px; }
+        .form-row textarea { width: 100%; }
+
+        .btn { padding: 0.55rem 1.2rem; border-radius: 4px; font-size: 0.85rem; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; font-weight: 500; }
+        .btn-green { background: var(--accent); color: #111; }
+        .btn-green:hover { background: #a8d015; }
+        .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.75rem; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+        .btn-sm:hover { color: var(--accent); border-color: var(--accent); }
+        .btn-del { border-color: #3a2020; color: #f87171; }
+        .btn-del:hover { background: #3a2020; border-color: #3a2020; }
+        .cancel { font-size: 0.8rem; color: var(--muted); margin-left: 0.6rem; }
+        .cancel:hover { color: var(--text); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 0.8rem; font-size: 0.85rem; }
+        th { background: #111; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); font-weight: 500; }
+        td { padding: 0.75rem 0.8rem; border-bottom: 1px solid #1e1e1e; vertical-align: top; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        td small { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.2rem; }
+        .actions { display: flex; gap: 0.4rem; }
+        .empty { color: var(--muted); font-size: 0.85rem; padding: 1.5rem 0; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">MHR. Admin</div>
+    <div>
+        <a href="index.php" target="_blank">View Portfolio ↗</a>
+        <a href="logout.php">Logout</a>
+    </div>
+</header>
+
+<div class="wrap">
+
+    <?php if ($msg): ?><div class="alert"><?php echo $msg; ?></div><?php endif; ?>
+
+    <div class="section">
+        <h2>Projects</h2>
+        <form method="POST">
+            <?php if ($ep): ?><input type="hidden" name="id" value="<?php echo $ep['id']; ?>"><?php endif; ?>
+            <div class="form-row">
+                <input type="text" name="title" placeholder="Project Title" required value="<?php echo htmlspecialchars($ep['title'] ?? ''); ?>">
+                <input type="text" name="tech_used" placeholder="Tech Used (PHP, MySQL...)" value="<?php echo htmlspecialchars($ep['tech_used'] ?? ''); ?>">
+            </div>
+            <div class="form-row">
+                <textarea name="description" placeholder="Description"><?php echo htmlspecialchars($ep['description'] ?? ''); ?></textarea>
+            </div>
+            <button type="submit" name="<?php echo $ep ? 'update_project' : 'add_project'; ?>" class="btn btn-green">
+                <?php echo $ep ? 'Update Project' : 'Add Project'; ?>
+            </button>
+            <?php if ($ep): ?><a href="admin.php" class="cancel">Cancel</a><?php endif; ?>
+        </form>
+
+        <table>
+            <tr><th>Title</th><th>Tech Used</th><th>Actions</th></tr>
+            <?php
+            $has = false;
+            while ($row = mysqli_fetch_assoc($projects)):
+                $has = true;
+            ?>
+            <tr>
+                <td>
+                    <?php echo htmlspecialchars($row['title']); ?>
+                    <small><?php echo htmlspecialchars(substr($row['description'], 0, 60)); ?>...</small>
+                </td>
+                <td><?php echo htmlspecialchars($row['tech_used']); ?></td>
+                <td>
+                    <div class="actions">
+                        <a href="?edit_project=<?php echo $row['id']; ?>"><button class="btn-sm">Edit</button></a>
+                        <a href="?del_project=<?php echo $row['id']; ?>" onclick="return confirm('Delete?')"><button class="btn-sm btn-del">Delete</button></a>
+                    </div>
+                </td>
+            </tr>
+            <?php endwhile; ?>
+            <?php if (!$has): ?><tr><td colspan="3" class="empty">No projects yet.</td></tr><?php endif; ?>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Skills</h2>
+        <form method="POST">
+            <?php if ($es): ?><input type="hidden" name="id" value="<?php echo $es['id']; ?>"><?php endif; ?>
+            <div class="form-row">
+                <input type="text" name="skill_name" placeholder="Skill Name" required value="<?php echo htmlspecialchars($es['skill_name'] ?? ''); ?>">
+                <select name="skill_level">
+                    <?php foreach (['Beginner','Intermediate','Advanced','Expert'] as $lvl): ?>
+                        <option value="<?php echo $lvl; ?>" <?php echo ($es['skill_level'] ?? '') == $lvl ? 'selected' : ''; ?>><?php echo $lvl; ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" name="<?php echo $es ? 'update_skill' : 'add_skill'; ?>" class="btn btn-green">
+                    <?php echo $es ? 'Update' : 'Add Skill'; ?>
+                </button>
+                <?php if ($es): ?><a href="admin.php" class="cancel">Cancel</a><?php endif; ?>
+            </div>
+        </form>
+
+        <table>
+            <tr><th>Skill</th><th>Level</th><th>Actions</th></tr>
+            <?php
+            $has = false;
+            while ($row = mysqli_fetch_assoc($skills)):
+                $has = true;
+            ?>
+            <tr>
+                <td><?php echo htmlspecialchars($row['skill_name']); ?></td>
+                <td><?php echo htmlspecialchars($row['skill_level']); ?></td>
+                <td>
+                    <div class="actions">
+                        <a href="?edit_skill=<?php echo $row['id']; ?>"><button class="btn-sm">Edit</button></a>
+                        <a href="?del_skill=<?php echo $row['id']; ?>" onclick="return confirm('Delete?')"><button class="btn-sm btn-del">Delete</button></a>
+                    </div>
+                </td>
+            </tr>
+            <?php endwhile; ?>
+            <?php if (!$has): ?><tr><td colspan="3" class="empty">No skills yet.</td></tr><?php endif; ?>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Experience</h2>
+        <form method="POST">
+            <?php if ($ee): ?><input type="hidden" name="id" value="<?php echo $ee['id']; ?>"><?php endif; ?>
+            <div class="form-row">
+                <input type="text" name="job_title" placeholder="Job Title" required value="<?php echo htmlspecialchars($ee['job_title'] ?? ''); ?>">
+                <input type="text" name="company" placeholder="Company" required value="<?php echo htmlspecialchars($ee['company'] ?? ''); ?>">
+                <input type="text" name="year" placeholder="Year (e.g. 2024)" value="<?php echo htmlspecialchars($ee['year'] ?? ''); ?>">
+            </div>
+            <div class="form-row">
+                <textarea name="description" placeholder="Description"><?php echo htmlspecialchars($ee['description'] ?? ''); ?></textarea>
+            </div>
+            <button type="submit" name="<?php echo $ee ? 'update_exp' : 'add_exp'; ?>" class="btn btn-green">
+                <?php echo $ee ? 'Update Experience' : 'Add Experience'; ?>
+            </button>
+            <?php if ($ee): ?><a href="admin.php" class="cancel">Cancel</a><?php endif; ?>
+        </form>
+
+        <table>
+            <tr><th>Position</th><th>Company</th><th>Year</th><th>Actions</th></tr>
+            <?php
+            $has = false;
+            while ($row = mysqli_fetch_assoc($experiences)):
+                $has = true;
+            ?>
+            <tr>
+                <td><?php echo htmlspecialchars($row['job_title']); ?></td>
+                <td><?php echo htmlspecialchars($row['company']); ?></td>
+                <td><?php echo htmlspecialchars($row['year']); ?></td>
+                <td>
+                    <div class="actions">
+                        <a href="?edit_exp=<?php echo $row['id']; ?>"><button class="btn-sm">Edit</button></a>
+                        <a href="?del_exp=<?php echo $row['id']; ?>" onclick="return confirm('Delete?')"><button class="btn-sm btn-del">Delete</button></a>
+                    </div>
+                </td>
+            </tr>
+            <?php endwhile; ?>
+            <?php if (!$has): ?><tr><td colspan="4" class="empty">No experiences yet.</td></tr><?php endif; ?>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Messages</h2>
+        <table>
+            <tr><th>Name</th><th>Email</th><th>Message</th><th>Date</th><th>Actions</th></tr>
+            <?php
+            $has = false;
+            while ($row = mysqli_fetch_assoc($messages)):
+                $has = true;
+            ?>
+            <tr>
+                <td><?php echo htmlspecialchars($row['name']); ?></td>
+                <td><?php echo htmlspecialchars($row['email']); ?></td>
+                <td><?php echo htmlspecialchars(substr($row['message'], 0, 80)); ?>...</td>
+                <td style="white-space:nowrap; color:var(--muted); font-size:0.8rem;"><?php echo date('M d, Y', strtotime($row['date_sent'])); ?></td>
+                <td>
+                    <a href="?del_msg=<?php echo $row['id']; ?>" onclick="return confirm('Delete?')"><button class="btn-sm btn-del">Delete</button></a>
+                </td>
+            </tr>
+            <?php endwhile; ?>
+            <?php if (!$has): ?><tr><td colspan="5" class="empty">No messages yet.</td></tr><?php endif; ?>
+        </table>
+    </div>
+
+</div>
+</body>
+</html>
